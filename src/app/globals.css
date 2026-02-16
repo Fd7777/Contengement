@@ -1,0 +1,157 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base ─── */
+:root {
+  --bg-primary: #09090b;
+  --bg-secondary: #111113;
+  --accent: #8b5cf6;
+  --accent-glow: rgba(139, 92, 246, 0.2);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg-primary);
+  color: #fafafa;
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* ─── Glass Panels ─── */
+@layer components {
+  .glass-panel {
+    @apply bg-surface/80 backdrop-blur-xl border border-border rounded-xl;
+  }
+
+  .glass-panel-elevated {
+    @apply bg-surface-elevated/90 backdrop-blur-xl border border-border rounded-xl shadow-lg shadow-black/20;
+  }
+
+  /* ─── Buttons ─── */
+  .btn-primary {
+    @apply px-4 py-2 bg-accent hover:bg-accent-hover text-white font-medium rounded-lg
+           transition-all duration-200 ease-out
+           shadow-md shadow-accent/20 hover:shadow-lg hover:shadow-accent/30
+           active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-surface-elevated hover:bg-surface-hover text-zinc-300 font-medium rounded-lg
+           border border-border hover:border-border-hover
+           transition-all duration-200 ease-out
+           active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply px-3 py-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-surface-hover rounded-lg
+           transition-all duration-150 ease-out;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium rounded-lg
+           border border-red-500/20 hover:border-red-500/40
+           transition-all duration-200 ease-out
+           active:scale-[0.98];
+  }
+
+  /* ─── Inputs ─── */
+  .input-field {
+    @apply w-full px-3 py-2 bg-surface-elevated/60 border border-border rounded-lg
+           text-zinc-100 placeholder:text-zinc-600
+           focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20
+           transition-all duration-200;
+  }
+
+  .textarea-field {
+    @apply w-full px-3 py-2 bg-surface-elevated/60 border border-border rounded-lg
+           text-zinc-100 placeholder:text-zinc-600 resize-none
+           focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20
+           transition-all duration-200;
+  }
+
+  /* ─── Status Badge ─── */
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full shrink-0;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium
+           border transition-all duration-200;
+  }
+
+  /* ─── Scene Card ─── */
+  .scene-card {
+    @apply px-3 py-2.5 rounded-lg cursor-pointer
+           border border-transparent
+           hover:bg-surface-hover/60
+           transition-all duration-150 ease-out;
+  }
+
+  .scene-card-active {
+    @apply bg-accent-muted border-accent/30;
+  }
+
+  /* ─── Section Header ─── */
+  .section-header {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2;
+  }
+
+  /* ─── Gradient Text ─── */
+  .gradient-text {
+    @apply bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400
+           bg-clip-text text-transparent;
+  }
+
+  /* ─── Modal Overlay ─── */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center
+           bg-black/60 backdrop-blur-sm
+           animate-fade-in;
+  }
+
+  .modal-content {
+    @apply glass-panel-elevated p-6 w-full max-w-md
+           animate-slide-up;
+  }
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: rgba(139, 92, 246, 0.3);
+  color: #fafafa;
+}
+
+/* ─── Focus Styles ─── */
+:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.5);
+  outline-offset: 2px;
+}
