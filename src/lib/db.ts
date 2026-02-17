@@ -173,6 +173,17 @@ export function deleteAsset(projectId: string, assetId: string): ProjectData | n
     return data;
 }
 
+export function updateAssetType(projectId: string, assetId: string, type: Asset["type"]): ProjectData | null {
+    const data = getProject(projectId);
+    if (!data) return null;
+    const asset = data.assets.find((a) => a.id === assetId);
+    if (!asset) return null;
+    asset.type = type;
+    data.project.updatedAt = new Date().toISOString();
+    saveProject(data);
+    return data;
+}
+
 export function linkAssetToScene(projectId: string, assetId: string, sceneId: string): ProjectData | null {
     const data = getProject(projectId);
     if (!data) return null;

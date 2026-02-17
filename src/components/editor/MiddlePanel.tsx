@@ -70,6 +70,7 @@ export default function MiddlePanel({
     const [localScene, setLocalScene] = useState<Scene | null>(null);
     const [assetsOpen, setAssetsOpen] = useState(true);
     const [showAssetPicker, setShowAssetPicker] = useState(false);
+    const [assetDropActive, setAssetDropActive] = useState(false);
     const debounceRef = useRef<NodeJS.Timeout>();
 
     useEffect(() => {
@@ -122,6 +123,22 @@ export default function MiddlePanel({
     const availableAssets = assets.filter(
         (a) => !a.sceneIds.includes(localScene.id)
     );
+
+    function handleAssetDrop(e: React.DragEvent) {
+        e.preventDefault();
+        setAssetDropActive(false);
+        const raw = e.dataTransfer.getData("application/x-content-os-asset");
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw) as { assetId?: string };
+            if (!parsed.assetId) return;
+            if (!linkedAssets.some((asset) => asset.id === parsed.assetId)) {
+                onLinkAsset(parsed.assetId);
+            }
+        } catch {
+            // ignore invalid payload
+        }
+    }
 
     return (
         <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
@@ -240,7 +257,15 @@ export default function MiddlePanel({
                 </div>
 
                 {/* ─── Scene Assets ─── */}
-                <div className="space-y-2">
+                <div
+                    className={`space-y-2 rounded-xl transition-all ${assetDropActive ? "ring-1 ring-accent/50 bg-accent/5 p-2" : ""}`}
+                    onDragOver={(e) => {
+                        e.preventDefault();
+                        setAssetDropActive(true);
+                    }}
+                    onDragLeave={() => setAssetDropActive(false)}
+                    onDrop={handleAssetDrop}
+                >
                     <button
                         onClick={() => setAssetsOpen(!assetsOpen)}
                         className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-400 transition-colors w-full"
@@ -258,6 +283,11 @@ export default function MiddlePanel({
                             </span>
                         )}
                     </button>
+                    {assetDropActive && (
+                        <p className="text-[10px] text-accent px-1">
+                            Drop to link this media to the current scene
+                        </p>
+                    )}
 
                     {assetsOpen && (
                         <div className="space-y-1.5 animate-fade-in">
