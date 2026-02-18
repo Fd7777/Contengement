@@ -1,7 +1,6 @@
 import fs from "fs";
-import path from "path";
 import { NextResponse } from "next/server";
-import { getProject } from "@/lib/db";
+import { getAssetFilePath, getProject } from "@/lib/db";
 
 export async function GET(
     _req: Request,
@@ -13,7 +12,7 @@ export async function GET(
     const asset = data.assets.find((a) => a.id === params.assetId);
     if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
 
-    const filePath = path.join(process.cwd(), ".content-os", "uploads", params.id, asset.fileName);
+    const filePath = getAssetFilePath(params.id, asset.fileName);
     if (!fs.existsSync(filePath)) {
         return NextResponse.json({ error: "Asset file missing" }, { status: 404 });
     }

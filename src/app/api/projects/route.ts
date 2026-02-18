@@ -18,6 +18,10 @@ export async function POST(req: Request) {
         status: "draft",
         hook: "",
         targetPlatform: body.targetPlatform || "youtube",
+        storyboardEnabled: body.storyboardEnabled ?? false,
+        storyboardAspect: body.storyboardAspect,
+        storyboardSafeZone: body.storyboardSafeZone ?? false,
+        audioTrack: body.audioTrack,
         createdAt: now,
         updatedAt: now,
     };

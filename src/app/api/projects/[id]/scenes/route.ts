@@ -35,6 +35,12 @@ export async function POST(
         scriptBody: "",
         notes: "",
         cta: "",
+        cameraDirectionNotes: "",
+        framingNotes: "",
+        overlaySlots: [],
+        hookType: "",
+        hookNotes: "",
+        snapToBeat: false,
     };
 
     const updated = addScene(params.id, scene);

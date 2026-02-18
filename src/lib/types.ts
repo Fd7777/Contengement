@@ -1,20 +1,42 @@
-// ─── Scene Status ───
+// Scene status
 export const SCENE_STATUSES = ["planned", "scripted", "shot", "edited", "published"] as const;
 export type SceneStatus = (typeof SCENE_STATUSES)[number];
 
-// ─── Shot Types ───
+// Shot types
 export const SHOT_TYPES = ["a-roll", "b-roll", "screen-share", "animation"] as const;
 export type ShotType = (typeof SHOT_TYPES)[number];
 
-// ─── Asset Types ───
+// Storyboard overlays
+export const OVERLAY_SLOT_TYPES = ["broll", "text", "graphic"] as const;
+export type OverlaySlotType = (typeof OVERLAY_SLOT_TYPES)[number];
+
+// Asset types
 export const ASSET_TYPES = ["footage", "reference", "audio", "graphic", "overlay"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 
-// ─── Project Status ───
+// Project status
 export const PROJECT_STATUSES = ["draft", "production", "completed", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
-// ─── Entities ───
+// Storyboard frame aspect
+export const STORYBOARD_ASPECTS = ["16:9", "9:16"] as const;
+export type StoryboardAspect = (typeof STORYBOARD_ASPECTS)[number];
+
+// Entities
+export interface OverlaySlot {
+    id: string;
+    type: OverlaySlotType;
+    description: string;
+    startTime: number;
+    endTime: number;
+    linkedAssetId?: string;
+}
+
+export interface AudioTrack {
+    filePath: string;
+    duration: number;
+    beatMarkers: number[];
+}
 
 export interface Project {
     id: string;
@@ -22,6 +44,10 @@ export interface Project {
     status: ProjectStatus;
     hook: string;
     targetPlatform: string;
+    storyboardEnabled?: boolean;
+    storyboardAspect?: StoryboardAspect;
+    storyboardSafeZone?: boolean;
+    audioTrack?: AudioTrack;
     createdAt: string;
     updatedAt: string;
 }
@@ -38,6 +64,13 @@ export interface Scene {
     scriptBody: string;
     notes: string;
     cta: string;
+    cameraDirectionNotes?: string;
+    framingNotes?: string;
+    overlaySlots?: OverlaySlot[];
+    hookType?: string;
+    hookStrength?: number;
+    hookNotes?: string;
+    snapToBeat?: boolean;
 }
 
 export interface Asset {
@@ -58,8 +91,7 @@ export interface ProjectData {
     assets: Asset[];
 }
 
-// ─── Helpers ───
-
+// Helpers
 export const STATUS_LABELS: Record<SceneStatus, string> = {
     planned: "Planned",
     scripted: "Scripted",

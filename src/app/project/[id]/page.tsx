@@ -7,13 +7,20 @@ import { useAppStore } from "@/lib/store";
 import LeftPanel from "@/components/editor/LeftPanel";
 import MiddlePanel from "@/components/editor/MiddlePanel";
 import RightPanel from "@/components/editor/RightPanel";
+import StoryboardView from "@/components/editor/StoryboardView";
+import ShotListView from "@/components/editor/ShotListView";
 import CompiledScriptModal from "@/components/editor/CompiledScriptModal";
 import {
     ArrowLeft,
     PanelRightOpen,
     PanelRightClose,
     FileText,
+    LayoutTemplate,
+    Rows4,
+    PenSquare,
 } from "lucide-react";
+
+type EditorView = "scene" | "storyboard" | "shot-list";
 
 export default function ProjectEditorPage() {
     const params = useParams();
@@ -22,6 +29,7 @@ export default function ProjectEditorPage() {
 
     const [data, setData] = useState<ProjectData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [editorView, setEditorView] = useState<EditorView>("scene");
 
     const {
         selectedSceneId,
@@ -59,12 +67,42 @@ export default function ProjectEditorPage() {
     }
 
     async function updateScene(sceneId: string, updates: Partial<Scene>) {
-        await fetch(`/api/projects/${projectId}/scenes/${sceneId}`, {
+        const previousData = data;
+        setData((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                scenes: prev.scenes.map((scene) =>
+                    scene.id === sceneId ? { ...scene, ...updates } : scene
+                ),
+                project: { ...prev.project, updatedAt: new Date().toISOString() },
+            };
+        });
+
+        const res = await fetch(`/api/projects/${projectId}/scenes/${sceneId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updates),
         });
-        await fetchData();
+
+        if (!res.ok) {
+            setData(previousData);
+            await fetchData();
+            return;
+        }
+
+        const updatedScene: Scene | null = await res.json();
+        if (!updatedScene) return;
+
+        setData((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                scenes: prev.scenes.map((scene) =>
+                    scene.id === sceneId ? { ...scene, ...updatedScene } : scene
+                ),
+            };
+        });
     }
 
     async function removeScene(sceneId: string) {
@@ -86,10 +124,14 @@ export default function ProjectEditorPage() {
         const newIdx = direction === "up" ? idx - 1 : idx + 1;
         [scenes[idx], scenes[newIdx]] = [scenes[newIdx], scenes[idx]];
 
+        await reorderScenesByIds(scenes.map((s) => s.id));
+    }
+
+    async function reorderScenesByIds(orderedIds: string[]) {
         await fetch(`/api/projects/${projectId}/scenes/reorder`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderedIds: scenes.map((s) => s.id) }),
+            body: JSON.stringify({ orderedIds }),
         });
         await fetchData();
     }
@@ -120,6 +162,12 @@ export default function ProjectEditorPage() {
         });
         await fetchData();
     }
+
+    const storyboardEnabled = Boolean(data?.project.storyboardEnabled);
+
+    useEffect(() => {
+        if (!storyboardEnabled) setEditorView("scene");
+    }, [storyboardEnabled]);
 
     if (loading || !data) {
         return (
@@ -157,6 +205,49 @@ export default function ProjectEditorPage() {
                     Full Script
                 </button>
 
+                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-surface-elevated/60 border border-border/40 overflow-x-auto">
+                    <button
+                        onClick={() => setEditorView("scene")}
+                        className={`btn-ghost text-[11px] px-2 py-1 flex items-center gap-1 ${editorView === "scene" ? "bg-accent/15 text-accent" : ""
+                            }`}
+                    >
+                        <PenSquare className="w-3 h-3" />
+                        Scene
+                    </button>
+                    {storyboardEnabled && (
+                        <>
+                            <button
+                                onClick={() => setEditorView("storyboard")}
+                                className={`btn-ghost text-[11px] px-2 py-1 flex items-center gap-1 ${editorView === "storyboard"
+                                    ? "bg-accent/15 text-accent"
+                                    : ""
+                                    }`}
+                            >
+                                <LayoutTemplate className="w-3 h-3" />
+                                Storyboard
+                            </button>
+                            <button
+                                onClick={() => setEditorView("shot-list")}
+                                className={`btn-ghost text-[11px] px-2 py-1 flex items-center gap-1 ${editorView === "shot-list" ? "bg-accent/15 text-accent" : ""
+                                    }`}
+                            >
+                                <Rows4 className="w-3 h-3" />
+                                Shot List
+                            </button>
+                        </>
+                    )}
+                </div>
+
+                <button
+                    onClick={() =>
+                        updateProject({ storyboardEnabled: !storyboardEnabled })
+                    }
+                    className={`btn-ghost text-[11px] ${storyboardEnabled ? "text-accent" : "text-zinc-400"}`}
+                    title="Enable or disable storyboard module"
+                >
+                    {storyboardEnabled ? "Storyboard On" : "Storyboard Off"}
+                </button>
+
                 <button onClick={toggleRightPanel} className="btn-ghost p-1.5">
                     {rightPanelOpen ? (
                         <PanelRightClose className="w-4 h-4" />
@@ -179,19 +270,40 @@ export default function ProjectEditorPage() {
                     onUpdateProject={updateProject}
                 />
 
-                <MiddlePanel
-                    scene={selectedScene}
-                    assets={data.assets}
-                    onUpdate={(updates) => {
-                        if (selectedScene) updateScene(selectedScene.id, updates);
-                    }}
-                    onLinkAsset={(assetId) => {
-                        if (selectedScene) linkAsset(assetId, selectedScene.id);
-                    }}
-                    onUnlinkAsset={(assetId) => {
-                        if (selectedScene) unlinkAsset(assetId, selectedScene.id);
-                    }}
-                />
+                {editorView === "scene" && (
+                    <MiddlePanel
+                        scene={selectedScene}
+                        assets={data.assets}
+                        onUpdate={(updates) => {
+                            if (selectedScene) updateScene(selectedScene.id, updates);
+                        }}
+                        onLinkAsset={(assetId) => {
+                            if (selectedScene) linkAsset(assetId, selectedScene.id);
+                        }}
+                        onUnlinkAsset={(assetId) => {
+                            if (selectedScene) unlinkAsset(assetId, selectedScene.id);
+                        }}
+                    />
+                )}
+
+                {editorView === "storyboard" && storyboardEnabled && (
+                    <StoryboardView
+                        project={data.project}
+                        scenes={data.scenes}
+                        assets={data.assets}
+                        onUpdateProject={updateProject}
+                        onUpdateScene={updateScene}
+                        onReorderScenes={reorderScenesByIds}
+                    />
+                )}
+
+                {editorView === "shot-list" && storyboardEnabled && (
+                    <ShotListView
+                        project={data.project}
+                        scenes={data.scenes}
+                        onUpdateScene={updateScene}
+                    />
+                )}
 
                 {rightPanelOpen && (
                     <RightPanel
