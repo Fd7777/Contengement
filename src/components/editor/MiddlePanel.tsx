@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { Scene, SceneStatus, ShotType, Asset } from "@/lib/types";
 import {
+    MASTER_SCRIPT_BLOCK_TYPES,
     SCENE_STATUSES,
     SHOT_TYPES,
     STATUS_COLORS,
@@ -31,6 +32,7 @@ import {
     wordCount,
     estimateDurationFromWords,
 } from "@/lib/types";
+import type { MasterScriptBlockType } from "@/lib/types";
 
 interface MiddlePanelProps {
     scene: Scene | null;
@@ -60,6 +62,64 @@ function formatBytes(bytes: number): string {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
+const SCRIPT_FORMATS: Array<{ id: MasterScriptBlockType; label: string }> = [
+    { id: "heading", label: "Heading" },
+    { id: "action", label: "Action" },
+    { id: "character", label: "Character" },
+    { id: "dialogue", label: "Dialogue" },
+    { id: "parenthetical", label: "Parenthetical" },
+    { id: "transition", label: "Transition" },
+];
+
+const SCRIPT_LINE_CLASS_MAP: Record<MasterScriptBlockType, string> = {
+    heading: "font-semibold tracking-wide ml-[6%] mr-[10%] whitespace-pre-wrap",
+    action: "ml-[6%] mr-[6%] whitespace-pre-wrap",
+    character: "font-semibold ml-[38%] w-[26%] whitespace-pre-wrap",
+    dialogue: "ml-[28%] w-[44%] whitespace-pre-wrap",
+    parenthetical: "italic text-zinc-300 ml-[32%] w-[34%] whitespace-pre-wrap",
+    transition: "font-semibold ml-[56%] w-[36%] whitespace-pre-wrap",
+};
+
+function escapeHtml(value: string): string {
+    return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+}
+
+function detectFormatFromLine(line: string): MasterScriptBlockType {
+    const trimmed = line.trim();
+    if (!trimmed) return "action";
+    const upper = trimmed.toUpperCase();
+    if (/^(INT\.|EXT\.|I\/E\.)/.test(upper)) return "heading";
+    if (/TO:$/.test(upper)) return "transition";
+    if (/^\(.*\)$/.test(trimmed)) return "parenthetical";
+    if (upper === trimmed && trimmed.length <= 30 && /[A-Z]/.test(trimmed)) return "character";
+    return "action";
+}
+
+function scriptBodyToHtml(scriptBody: string): string {
+    const lines = scriptBody.split("\n");
+    if (lines.length === 0 || (lines.length === 1 && !lines[0].trim())) {
+        return `<div data-script-line="true" data-format="action" class="${SCRIPT_LINE_CLASS_MAP.action}"><br></div>`;
+    }
+    return lines
+        .map((line) => {
+            const format = detectFormatFromLine(line);
+            const content = line.length > 0 ? escapeHtml(line) : "<br>";
+            return `<div data-script-line="true" data-format="${format}" class="${SCRIPT_LINE_CLASS_MAP[format]}">${content}</div>`;
+        })
+        .join("");
+}
+
+function closestScriptLine(node: Node | null): HTMLElement | null {
+    if (!node) return null;
+    if (node instanceof HTMLElement && node.dataset.scriptLine === "true") return node;
+    if (node instanceof HTMLElement) return node.closest('[data-script-line="true"]');
+    if (node.parentElement) return node.parentElement.closest('[data-script-line="true"]');
+    return null;
+}
+
 export default function MiddlePanel({
     scene,
     assets,
@@ -71,11 +131,25 @@ export default function MiddlePanel({
     const [assetsOpen, setAssetsOpen] = useState(true);
     const [showAssetPicker, setShowAssetPicker] = useState(false);
     const [assetDropActive, setAssetDropActive] = useState(false);
+    const [activeScriptFormat, setActiveScriptFormat] = useState<MasterScriptBlockType>("action");
+    const [scriptEmpty, setScriptEmpty] = useState(false);
     const debounceRef = useRef<NodeJS.Timeout>();
+    const scriptEditorRef = useRef<HTMLDivElement>(null);
+    const scriptSelectionRangeRef = useRef<Range | null>(null);
 
     useEffect(() => {
         setLocalScene(scene ? { ...scene } : null);
     }, [scene]);
+
+    useEffect(() => {
+        if (!localScene || !scriptEditorRef.current) return;
+        if (document.activeElement === scriptEditorRef.current) return;
+        const nextHtml = scriptBodyToHtml(localScene.scriptBody || "");
+        if (scriptEditorRef.current.innerHTML !== nextHtml) {
+            scriptEditorRef.current.innerHTML = nextHtml;
+        }
+        setScriptEmpty(!(scriptEditorRef.current.textContent || "").trim());
+    }, [localScene?.id, localScene?.scriptBody]);
 
     function handleChange(field: keyof Scene, value: string | number) {
         if (!localScene) return;
@@ -92,6 +166,117 @@ export default function MiddlePanel({
         if (!localScene) return;
         setLocalScene({ ...localScene, status });
         onUpdate({ status });
+    }
+
+    function ensureScriptLineClasses(editor: HTMLDivElement) {
+        const children = Array.from(editor.children) as HTMLElement[];
+        if (!children.length) {
+            const line = document.createElement("div");
+            line.dataset.scriptLine = "true";
+            line.dataset.format = "action";
+            line.className = SCRIPT_LINE_CLASS_MAP.action;
+            line.innerHTML = "<br>";
+            editor.appendChild(line);
+            return;
+        }
+        children.forEach((line) => {
+            line.dataset.scriptLine = "true";
+            const rawFormat = line.dataset.format as MasterScriptBlockType | undefined;
+            const format = MASTER_SCRIPT_BLOCK_TYPES.includes(rawFormat as MasterScriptBlockType)
+                ? (rawFormat as MasterScriptBlockType)
+                : "action";
+            line.dataset.format = format;
+            line.className = SCRIPT_LINE_CLASS_MAP[format];
+            line.style.direction = "ltr";
+        });
+    }
+
+    function syncScriptFromEditor() {
+        if (!localScene || !scriptEditorRef.current) return;
+        ensureScriptLineClasses(scriptEditorRef.current);
+        const lines = Array.from(scriptEditorRef.current.children).map((child) =>
+            (child.textContent || "").replace(/\u00a0/g, " ")
+        );
+        const scriptBody = lines.join("\n").replace(/\n+$/, "");
+        const updated = { ...localScene, scriptBody };
+        setLocalScene(updated);
+        setScriptEmpty(!(scriptEditorRef.current.textContent || "").trim());
+
+        clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            onUpdate({ scriptBody });
+        }, 220);
+    }
+
+    function captureScriptSelectionRange() {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+        const range = selection.getRangeAt(0);
+        if (!scriptEditorRef.current?.contains(range.commonAncestorContainer)) return;
+        scriptSelectionRangeRef.current = range.cloneRange();
+    }
+
+    function restoreScriptSelectionRange() {
+        const selection = window.getSelection();
+        if (!selection || !scriptSelectionRangeRef.current) return null;
+        selection.removeAllRanges();
+        selection.addRange(scriptSelectionRangeRef.current);
+        return scriptSelectionRangeRef.current;
+    }
+
+    function updateActiveScriptFormatFromSelection() {
+        const selection = window.getSelection();
+        const editor = scriptEditorRef.current;
+        const line =
+            closestScriptLine(selection?.anchorNode || null) ||
+            ((editor?.firstElementChild as HTMLElement | null) ?? null);
+        if (!line) return;
+        const format = (line.dataset.format as MasterScriptBlockType) || "action";
+        setActiveScriptFormat(format);
+        captureScriptSelectionRange();
+    }
+
+    function applyScriptFormat(format: MasterScriptBlockType) {
+        const range = restoreScriptSelectionRange();
+        const editor = scriptEditorRef.current;
+        const line =
+            closestScriptLine(range?.startContainer || null) ||
+            ((editor?.firstElementChild as HTMLElement | null) ?? null);
+        if (!line) return;
+        line.dataset.format = format;
+        line.className = SCRIPT_LINE_CLASS_MAP[format];
+        line.style.direction = "ltr";
+        setActiveScriptFormat(format);
+        captureScriptSelectionRange();
+        syncScriptFromEditor();
+    }
+
+    function handleScriptKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+        if (event.key !== "Enter") return;
+        const editor = scriptEditorRef.current;
+        if (!editor) return;
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+        const range = selection.getRangeAt(0);
+        const line = closestScriptLine(range.startContainer);
+        if (!line) return;
+        event.preventDefault();
+        const format = (line.dataset.format as MasterScriptBlockType) || "action";
+        const nextLine = document.createElement("div");
+        nextLine.dataset.scriptLine = "true";
+        nextLine.dataset.format = format;
+        nextLine.className = SCRIPT_LINE_CLASS_MAP[format];
+        nextLine.style.direction = "ltr";
+        nextLine.innerHTML = "<br>";
+        line.insertAdjacentElement("afterend", nextLine);
+
+        const nextRange = document.createRange();
+        nextRange.setStart(nextLine, 0);
+        nextRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(nextRange);
+        scriptSelectionRangeRef.current = nextRange.cloneRange();
+        syncScriptFromEditor();
     }
 
     if (!localScene) {
@@ -390,13 +575,45 @@ export default function MiddlePanel({
                             {words} words
                         </span>
                     </label>
-                    <textarea
-                        value={localScene.scriptBody}
-                        onChange={(e) => handleChange("scriptBody", e.target.value)}
-                        className="textarea-field text-sm font-mono leading-relaxed min-h-[240px]"
-                        placeholder="Write your script here..."
-                        rows={12}
-                    />
+                    <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1.5 rounded-xl border border-border/40 bg-surface/60 p-2">
+                            {SCRIPT_FORMATS.map((item) => (
+                                <button
+                                    key={item.id}
+                                    onMouseDown={(event) => {
+                                        event.preventDefault();
+                                        applyScriptFormat(item.id);
+                                    }}
+                                    className={`rounded-lg px-2.5 py-1 text-[11px] border transition ${
+                                        activeScriptFormat === item.id
+                                            ? "border-cyan-400/35 bg-cyan-500/15 text-cyan-200"
+                                            : "border-border/40 text-zinc-300 hover:bg-zinc-800/60"
+                                    }`}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative">
+                            {scriptEmpty && (
+                                <p className="pointer-events-none absolute left-8 top-6 z-10 text-sm text-zinc-500">
+                                    Write your screenplay here...
+                                </p>
+                            )}
+                            <div
+                                ref={scriptEditorRef}
+                                contentEditable
+                                suppressContentEditableWarning
+                                className="min-h-[320px] rounded-xl border border-border/50 bg-[linear-gradient(180deg,rgba(46,53,64,0.95)_0%,rgba(35,41,52,0.96)_100%)] px-8 py-6 text-zinc-100 leading-7 outline-none shadow-[0_14px_40px_rgba(0,0,0,0.25)]"
+                                onInput={syncScriptFromEditor}
+                                onKeyDown={handleScriptKeyDown}
+                                onMouseUp={updateActiveScriptFormatFromSelection}
+                                onKeyUp={updateActiveScriptFormatFromSelection}
+                                onBlur={captureScriptSelectionRange}
+                                onFocus={updateActiveScriptFormatFromSelection}
+                            />
+                        </div>
+                    </div>
                     {words === 0 && (
                         <p className="text-[11px] text-amber-500/60 flex items-center gap-1">
                             ⚠ No script written
