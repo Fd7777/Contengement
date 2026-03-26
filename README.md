@@ -22,7 +22,7 @@ That's it! No command line needed.
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/contengement.git
+   git clone https://github.com/swayanshubi/contengement.git
    cd contengement
    ```
 
